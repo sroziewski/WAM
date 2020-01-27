@@ -1,0 +1,244 @@
+C                                                                               
+C       USER INPUT OF CHIEF.             CREATED 20/02/2005                        
+C       ====================                                                    
+C                                                                               
+C        USER INFORMATION IS BEING READ WITH THE PRESUMPTIONS THAT:             
+C         1. EVERY LINE STARTING WITH 'C' IS A COMMENT LINE                     
+C         2. VALUES ARE PUT IN BELOW POSITIONS INDICATED WITH '-'               
+C            (RIGHT-JUSTIFIED, BUT CHARACTER LEFT-JUSTIFIED)                    
+C ----------------------------------------------------------------------        
+C                                                                               
+C           **** PERIOD OF MODEL RUN   ****                                     
+C                                                                               
+C     IDATEA   INTERGER*10   START DATE OF  RUN  (YYYYMMDDHHMMSS)                   
+C     IDATEE   INTERGER*10   END   DATE OF  RUN  (YYYYMMDDHHMMSS)                   
+C                                                                               
+C        IDATEA          IDATEE                                           
+C--------------  --------------                                            
+  20140114070000 20140114110000
+C                                                                               
+C ----------------------------------------------------------------------        
+C                                                                               
+C           **** OPTION FOR INITIAL SPECTRA   ****                              
+C                                                                               
+C     IOPTI   = -1 HOT START.                              
+C             =  0 WIND INDEPENDENT INITIAL VALUES.                              
+C             =  1 WIND DEPENDENT INITIAL VALUES AND                             
+C                  ENERGY EQUAL ZERO IF WINDSPEED IS ZERO                        
+C             =  2 WIND DEPENDENT INITIAL VALUES AND                             
+C                  ENERGY COMPUTED FROM GIVEN PARAMETERS IF                      
+C                  WINDSPEED IS ZERO.                                            
+C  IOPTI                                               
+C-------                                 
+       1            
+C                                                                               
+C ----------------------------------------------------------------------        
+C                                                                               
+C           **** PARAMETER OF INITIAL SPECTRUM   ****                           
+C                                                                               
+C     ALPHA   = PHILLIPS' PARAMETER  (NOT USED IF IOPTI = 1)                    
+C     FM      = PEAK FREQUENCY (HZ) AND/OR MAXIMUM FREQUENCY                    
+C     GAMMA   = OVERSHOOT FACTOR                                                
+C     SIGMAA  = LEFT PEAK WIDTH                                                 
+C     SIGMAB  = RIGHT PEAK WIDTH                                                
+C     THETAQ  = WAVE DIRECTION (DEG) (NOT USED IF IOPTI = 1)                    
+C     FETCH   = FETCH IN METRES (IF ZERO THEN 0.5 OF THE                        
+C               LATITUDE INCREMENT IS USED.)                                    
+C                                                                               
+C     ALPHA          FM       GAMMA      SIGMAA      SIGMAB      THETAQ         
+C----------  ----------  ----------  ----------  ----------  ----------         
+    0.01800     0.20000     3.00000     0.07000     0.09000     0.00000         
+C                                                                               
+C     FETCH                                                                     
+C----------                                                                     
+     30000.                                                                     
+C                                                                               
+C ----------------------------------------------------------------------        
+C                                                                               
+C           **** MODEL OPTIONS  ****                                            
+C                                                                               
+C     ICASE    1  SPHERICAL,  OTHERWISE CARTESIAN PROPAGATION                        
+C     ISHALLO  1  DEEP,  OTHERWISE SHALLOW WATER MODEL                                
+C     IREFRA   0  REFRACTION IS NOT USED                                            
+C              1  DEPTH REFRACTION IS USED                                          
+C              2  DEPTH AND CURRENT REFRACTION IS USED                              
+C     ISBR     0  BREAKING IS NOT USED                                            
+C              1  BREAKING IS USED                                          
+C     IBOUNC   1  FOR COURSE GRID OUTPUT, OTHERWISE NO OUTPUT                        
+C     IBOUNF   1  FOR FINE GRID INPUT, OTHERWISE NO INPUT                       
+C     ITEST    > 0 FOR OUPUT UPTO SUBROUTINE LEVEL                                    
+C              0  NO TEST OUTPUT                                                      
+C     IREST    0  RESTART FILE IS NOT SAVED  
+C              1  RESTART FILE IS SAVED             
+C                                                                               
+C  ICASE  ISHALLO   IREFRA     ISBR   IBOUNC   IBOUNF    ITEST    IREST        
+C-------  -------  -------  -------  -------  -------  -------  -------
+       0        0        0        0        0        0        0        1 
+C                                                                               
+C ----------------------------------------------------------------------        
+C                                                                               
+C           **** MODEL TIME STEPS ****                                          
+C                                                                               
+C     IDELPRO  INTERGER*7    PROPAGATION TIMESTEP                               
+C     IDELT    INTERGER*7    SOURCE TIME STEP                                   
+C     IDELWO   INTERGER*7    OUTPUT WIND TIMESTEP                               
+C     IDELWI   INTERGER*7    TIMESTEP ON INPUT WIND FILE                        
+C     U        CHARACTER*1   TIME UNIT  M MINUTE OR H HOUR ELSE SECOND                  
+C                                                                               
+C      --------   -----------------------------------------------             
+C      DEMAND :   ALL TIMESTEPS MUST SYCRONISE WITH THEIR MAXIMUM             
+C      --------   -----------------------------------------------             
+C                                                                               
+CIDELPRO U    IDELT U   IDELWO U   IDELWI U                                     
+C------- -  ------- -  ------- -  ------- -                                     
+     240 S      240 S      240 S        1 H                                     
+C                                                                               
+C           **** OUTPUT TIME IN FIXED INTERVALS ****                            
+C                                                                               
+C     ------------------------------------------------------------              
+C     DEMAND :   ALL OUTPUT TIMESTEPS MUST BE MULTIPLE OF IDELPRO.              
+C     ------------------------------------------------------------              
+C                                                                               
+C     IDELINT  INTERGER*7    INTEGRATED PARAMETER OF TOTAL SEA                  
+C     IDELSPT  INTERGER*7    SPECTRA OF TOTAL SEA                               
+C     IDELRES  INTERGER*7    OUTPUT FILES AND RESTART FILES ARE SAVED           
+C     U        CHARACTER*1   TIME UNIT  M MINUTE OR H HOUR ELSE SECOND                  
+C                                                                               
+CIDELINT U  IDELSPT U  IDELRES U                          
+C------- -  ------- -  ------- -                          
+       1 H        1 H        1 H                          
+C                                                                               
+C           **** OUTPUT TIME AT SPECIFIED TIMES ****                            
+C                                                                               
+C           MOUTT  = MUST BE .GE. THAN THE NUMBER OF GIVEN OUTPUT TIMES 
+C                    OTHERWISE PROGRAM WILL IGNORE OUTPUT TIMES
+C  MOUTT                                              
+C-------                               
+   2640                                                                               
+C                                                                               
+C     ----------------------------------------------------------------          
+C     DEMAND :   ALL OUTPUT TIMES MUST BE AT THE END OF A PROPAGATION.          
+C     ----------------------------------------------------------------          
+C   SPECIFY A LIST WITH DATES (YYYYMMDDHHMMSS) AND CLOSE THE              
+C   LIST BY 'END'. IF THE LIST INCLUDES ANYTHING ELSE THAN 'END'         
+C   ALL OUTPUT TIME STEPS SPECIFIED ABOVE ARE IGNORED.                          
+C                                                                               
+CYYYYMMDDHHMMSS  YYYYMMDDHHMMSS  YYYYMMDDHHMMSS  YYYYMMDDHHMMSS
+C--------------  --------------  --------------  --------------
+ 20140114070000--20140114080000--20140114090000--20140114100000
+ 20140114110000
+C
+ END      THE INPUT LIST HAS TO BE CLOSED BY THIS END LINE                                                      
+C
+C ----------------------------------------------------------------------        
+C                                                                               
+C           **** SELECTION OF OUTPUT DATA ****                                  
+C                                                                               
+C     P   CHARACTER*1   PRINTER OUTPUT..                                        
+C          Y  DATA ARE PRINTED, OTHERWISE NO OUTPUT                             
+C     F   CHARACTER*1   FILE OUTPUT..                                           
+C          Y  DATA ARE WRITTEN TO FILE, OTHERWISE NO OUTPUT                     
+C                                                                               
+CP F                                   P F
+C- -                                   - -
+ N Y   WIND SPEED U10                  N Y   WIND DIRECTION
+ N N   FRICTION VELOCITY               N N   DRAG COEFFICIENT
+ N N   DUMMY                           N N   DUMMY
+C
+ N Y   SIGNIFICANT WAVE HEIGHT         N Y   WAVE PEAK PERIOD
+ N Y   WAVE MEAN PERIOD                N N   WAVE TM1 PERIOD
+ N N   WAVE TM2 PERIOD                 N Y   WAVE DIRECTION
+ N N   DIRECTIONAL SPREAD              N N   NORMALISED WAVE STRESS
+C
+ N N   SEA SIGNIFICANT WAVE HEIGHT     N N   SEA PEAK PERIOD
+ N N   SEA MEAN PERIOD                 N N   SEA TM1 PERIOD
+ N N   SEA TM2 PERIOD                  N N   SEA DIRECTION
+ N N   SEA DIRECTIONAL SPREAD          N N   DUMMY
+C
+ N N   SWELL SIGNIFICANT WAVE HEIGHT   N N   SWELL PEAK PERIOD
+ N N   SWELL MEAN PERIOD               N N   SWELL TM1 PERIOD
+ N N   SWELL TM2 PERIOD                N N   SWELL DIRECTION
+ N N   SWELL DIRECTIONAL SPREAD        N N   DUMMY
+C
+ N N   SPECTRA OF TOTAL SEA            N N   SEA SPECTRA
+ N N   SWELL SPECTRA                   N N   DUMMY
+C
+C ----------------------------------------------------------------------        
+C
+C           **** OUTPUT SITES FOR SPECTRA ****                                              
+C                                                                               
+C           MOUTP  = MUST BE .GE. THAN THE NUMBER OF GIVEN OUTPUT SITES 
+C                    OTHERWISE PROGRAM WILL IGNORE SITES 
+C           XLONG  = LONGITUDE IN DEGREE                                       
+C           XLAT   = LATITUDE IN DEGREE                                        
+C           NAME   = SITE NAME (UP TO 20 CHARACTER)                            
+C
+C  MOUTP                                              
+C-------                                     
+      20                                                                               
+C                                                                               
+C   XLONG      XLAT  NAME                                                       
+C--------  --------  ---------+---------+                                       
+C  -0.2895   -0.0813  Szwecja boja 
+C                                                                               
+ END      THE INPUT LIST HAS TO BE CLOSED BY THIS END LINE                                                      
+C                                                                               
+C ----------------------------------------------------------------------        
+C                                                                               
+C           **** INPUT AND OUTPUT FILE NAMES ****    
+C
+C    THE PROGRAM OPENS AUTOMATICALLY THE FOLLOWING FILES, WHICH ARE 
+C    DEFINED IN "WAM_FILE_MODULE.f90":
+C
+C    UNIT = IU05 = 55  FILE05 = 'WAM_User' TO READ THIS INPUT FILE.
+C    UNIT = IU06 = 66  FILE06 = 'WAM_Prot' TO WRITE A PROTOCOL.
+C
+C    ALL THE FOLLOWING FILES CAN TO BE DEFINED BELOW. IF A LINE OF 
+C    BLANKS IS GIVEN THE PROGRAM WILL USE STANDARD NAMES WHICH ARE 
+C    DEFINED IN "WAM_FILE_MODULE.f90".
+C   
+C WIND DATA FILE NAME (UNIT=IU01 FORM. INPUT)
+C---------+---------+---------+---------+---------+---------+---------+         
+ WIND_INPUT.DAT
+C
+C FILE IDENTIFIER BOUNDARY VALUES FROM A PREVIOUS COARSE GRID WAM
+C (UNIT=IU02 UNFORM. INPUT) ONLY USED IF IBOUNF = 1
+C---------+---------+---------+---------+---------+---------+---------+         
+ FBI
+C
+C ICE FIELD DATA (UNIT=IU03 FORM. INPUT) 
+C IF A LINE OF BLANK IS GIVEN ICE IS NOT PROCESSED
+C---------+---------+---------+---------+---------+---------+---------+         
+
+C
+C GRID DATA FILE (UNIT=IU07 FORM. INPUT)
+C---------+---------+---------+---------+---------+---------+---------+         
+ Grid_info_SWAMP
+C
+C CURRENT DATA FILE NAME
+C IF A BLANK LINE IS GIVEN CURRENTS ARE NOT PROCESSED.
+C---------+---------+---------+---------+---------+---------+---------+         
+
+C
+C RESTART FILE IDENTIFIER (UNIT=IU17 UNFORM. OUT.)
+C---------+---------+---------+---------+---------+---------+---------+         
+ BLS
+C
+C COARSE GRID BOUNDARY VALUE OUTPUT FILE IDENTIFIER 
+C (UNIT=IU19=70 UNFORM. OUT.) ONLY USED IF IBOUNC = 1
+C IF MORE THAN ONE NEST IS PROCESSED UNITS ARE 69+NESTNUMBER AND IN
+C THE IDENTIFIER THE 2 LAST CHARACTERS ARE REPLACED BY THE NESTNUMBER
+C---------+---------+---------+---------+---------+---------+---------+         
+ CBO
+C
+C INTEGRATED PARAMETER FILE IDENTIFIER (UNIT=IU20 UNFORM. OUT.)
+C---------+---------+---------+---------+---------+---------+---------+         
+ MAP
+C
+C SPECTRA FILE IDENTIFIER (UNIT=IU25 UNFORM. OUT.)
+C---------+---------+---------+---------+---------+---------+---------+         
+ OUT
+C                                                                               
+C ----------------------------------------------------------------------        
+C                END OF USER INPUT PROG CHIEF.                                  
+C ----------------------------------------------------------------------        

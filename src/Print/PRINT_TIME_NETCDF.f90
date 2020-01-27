@@ -1,0 +1,434 @@
+PROGRAM PRINT_TIME_NETCDF
+
+! ---------------------------------------------------------------------------- !
+!
+!**** *PRINT_TIME_NETCDF* - PRINTS MAPS FROM WAMODEL OUTPUT.
+!
+!     H. GUNTHER    ECMWF/GKSS     DECEMBER 1989
+!     R. JANOWCZYK  UG             DECEMBER 2010
+!
+!     PURPOSE.
+!     --------
+!       POSTPROCESSING OF WAM MODEL INTEGRATED DATA.
+!       ADDED POSSIBILITY TO WRITE ALL DATA IN NETCDF FILE FORMAT
+!
+!     INTERFACE.
+!     ----------
+!
+!       *PROGRAM* *PRINT_GRID_FILE*
+!          IU01     INPUT UNIT WAVE AND WIND FIELDS (WAMODEL IU20).
+!          IU05     USER INPUT.
+!          IU06     PRINTER OUTPUT.
+!
+!     EXTERNALS
+!     ---------
+!
+!       *ABORT1*        - TERMINATES PROCESSING.
+!       *INCDATE*       - INCREMENTS DATE-TIME-GROUP
+!       *INGRID*        - READS WAVEMODEL OUTPUT FILE (MAP) (GRIDDED)
+!       *GFILE*         - FETCH A FILE.
+!       *PRINT_ARRAY*   - PRINTS AN ARRAY.
+!       *READ_GRID_USER* - READS IN USER INPUT.
+!
+!     METHOD.
+!     -------
+!
+!       THIS PROGRAM TAKES THE  WAM MODEL OUTPUTS AS INPUT AND
+!       PRINTS FIELDS OF INTEGRATED DATA.
+!
+!     REFERENCE.
+!     ----------
+!
+!        NONE.
+!
+! ---------------------------------------------------------------------------- !
+!
+!*     EXTERNALS.
+!     -----------
+USE NETCDF
+USE WAM_GENERAL_MODULE, ONLY:  &
+&       INCDATE,               &  !! UPDATES A DATE/TIME GROUP.
+&       PRINT_ARRAY,           &  !! PRINT AN ARRAY.
+&       OPEN_FILE                 !! OPEN A FILE.
+
+! ---------------------------------------------------------------------------- !
+!
+!*    INTERFACE VARIABLE
+
+USE WAM_PRINT_MODULE, ONLY: IU05, FILE05, IU06, FILE06, ITEST,                 &
+&                           CDATEA, CDATEE, IDELDO,                            &
+&                           IU01, FILE01, CDTFILE, IDFILE,                     &
+&                           NX, NY, AMOWEP, AMOSOP, AMOEAP, AMONOP,            &
+&                           XDELLA, XDELLO, U10_GR, UDIR_GR, US_GR, CD_GR,     &
+&                           HS_GR, PPER_GR, MPER_GR, TM1_GR, TM2_GR, MDIR_GR,  &
+&                           SPRE_GR, TAUW_GR,                                  &
+&                           HS_SEA_GR, PPER_SEA_GR, MPER_SEA_GR, TM1_SEA_GR,   &
+&                           TM2_SEA_GR, MDIR_SEA_GR, SPRE_SEA_GR,              &
+&                           HS_SWELL_GR, PPER_SWELL_GR, MPER_SWELL_GR,         &
+&                           TM1_SWELL_GR, TM2_SWELL_GR, MDIR_SWELL_GR,         &
+&                           SPRE_SWELL_GR
+
+USE WAM_OUTPUT_SET_UP_MODULE,ONLY: CDTINTT, NOUTT, COUTT, PFLAG, CFLAG,        &
+&                                  TITL, SCAL
+
+IMPLICIT NONE
+! THIS IS THE NAME OF THE DATA FILE WE WILL CREATE.
+CHARACTER (LEN = 6), PARAMETER :: FILE_NAME = "wam.nc"
+INTEGER :: NCID
+
+! WE ARE WRITING 2D DATA, NETCDF DIMENSIONS.
+INTEGER, PARAMETER :: NDIMS = 3
+CHARACTER (LEN = *), PARAMETER :: LAT_NAME = "LATITUDE"
+CHARACTER (LEN = *), PARAMETER :: LON_NAME = "LONGITUDE"
+CHARACTER (LEN = *), PARAMETER :: TIME_NAME = "TIME"
+CHARACTER (LEN = *), PARAMETER :: U10_NAME = "U10"
+CHARACTER (LEN = *), PARAMETER :: UDIR_NAME = "UDIR"
+CHARACTER (LEN = *), PARAMETER :: US_NAME = "US"
+CHARACTER (LEN = *), PARAMETER :: CD_NAME = "CD"
+CHARACTER (LEN = *), PARAMETER :: HS_NAME = "HS"
+CHARACTER (LEN = *), PARAMETER :: PPER_NAME = "PPER"
+CHARACTER (LEN = *), PARAMETER :: MPER_NAME = "MPER"
+CHARACTER (LEN = *), PARAMETER :: MDIR_NAME = "MDIR"
+REAL, ALLOCATABLE :: LATS(:), LONS(:), T(:)
+INTEGER :: LAT_DIMID, LON_DIMID, TIME_DIMID
+INTEGER :: LAT_VARID, LON_VARID, U10_GR_VARID, UDIR_GR_VARID, US_GR_VARID, TIME_VARID
+INTEGER :: CD_GR_VARID, HS_GR_VARID, PPER_GR_VARID, MPER_GR_VARID, MDIR_GR_VARID
+INTEGER :: LAT, LON, RECORD
+INTEGER :: DIMIDS(NDIMS), START(NDIMS), COUNT(NDIMS)
+
+! IT'S GOOD PRACTICE FOR EACH VARIABLE TO CARRY A "UNITS" ATTRIBUTE.
+CHARACTER (LEN = *), PARAMETER :: UNITS = "UNITS"
+CHARACTER (LEN = *), PARAMETER :: U_UNITS = "METERS/SECONDS"
+CHARACTER (LEN = *), PARAMETER :: H_UNITS = "METERS"
+CHARACTER (LEN = *), PARAMETER :: P_UNITS = "SECONDS"
+CHARACTER (LEN = *), PARAMETER :: T_UNITS = "HOURS"
+CHARACTER (LEN = *), PARAMETER :: DEG_UNITS = "DEGREES"
+CHARACTER (LEN = *), PARAMETER :: LAT_UNITS = "DEGREES_NORTH"
+CHARACTER (LEN = *), PARAMETER :: LON_UNITS = "DEGREES_EAST"
+! ---------------------------------------------------------------------------- !
+!
+!*    LOCAL VARIABLE
+
+LOGICAL       :: IEOF
+CHARACTER*14  :: IHH
+INTEGER       :: I, IFAIL, forecast_time_in, forecast_hh
+LOGICAL       :: FRSTIME = .TRUE.
+character*14  :: argv(1), forecast_time_in_str
+
+! ---------------------------------------------------------------------------- !
+!
+!*    GETTING COMMAND LINE ARGUMENTS
+! ---------------------------------------------------------------------------- !
+
+if (iargc().ne.1)then
+     write(*,*) 'Too few arguments for program PRINT_TIME_NETCDF'
+     stop
+end if
+
+call getarg(1,argv(1))
+
+read (argv(1),*)forecast_time_in
+! ---------------------------------------------------------------------------- !
+!
+!*    1. INITALISATION.
+!        --------------
+
+OPEN (UNIT=IU05, FILE=FILE05, FORM="FORMATTED", STATUS="OLD")
+OPEN (UNIT=IU06, FILE=FILE06, FORM="FORMATTED", STATUS="UNKNOWN")
+
+!*    1.2 READ USER INPUT.
+!         ----------------
+
+CALL READ_GRID_USER
+
+RECORD = 0
+!*    1.3 FIRST WAVEMODEL OUTPUT FILE DATE AND PRINT DATE.
+!         ------------------------------------------------
+ALLOCATE(T(NOUTT-1))
+IF (NOUTT.GT.0) THEN
+   CDATEE = '  '
+   CDATEA = COUTT(1)
+   DO I = 1,NOUTT
+      IF (COUTT(I).LT.CDATEA) CDATEA = COUTT(I)
+      IF (COUTT(I).GT.CDATEE) CDATEE = COUTT(I)
+      IF (I.NE.NOUTT) THEN
+         T(I)=I
+      ENDIF
+   END DO
+END IF
+CDTINTT = '  '
+
+! ---------------------------------------------------------------------------- !
+!
+!     SET UP REAL TIME FORECAST -- WHEN IT STARTS AT 12.00 JUST ADD 12 HOURS
+!        -----------------------
+
+read (COUTT(1)(9:10),*)forecast_hh
+forecast_hh = forecast_hh + forecast_time_in
+write (forecast_time_in_str,'(I2)')forecast_hh
+if(forecast_hh .lt.10)forecast_time_in_str = '0'//forecast_time_in_str(2:2)
+
+! Create the file. 
+CALL CHECK(NF90_CREATE(FILE_NAME, NF90_CLOBBER, NCID))
+
+! ---------------------------------------------------------------------------- !
+!
+!     2. LOOP OVER OUTPUT FILES.
+!        -----------------------
+
+FILES: DO
+
+!     2.1 FETCH FILE.
+!         -----------
+
+   CALL OPEN_FILE (IU06, IU01, FILE01, CDTFILE, 'OLD', IFAIL)
+   IF (IFAIL.NE.0) STOP
+
+!     2.2  LOOP OVER OUTPUT TIMES.
+!          -----------------------
+
+   TIMES: DO
+
+!     2.2.1 READ IN WIND AND WAVE FIELDS.
+!           -----------------------------
+
+      CALL INGRID (IU01, IEOF)
+
+      IF (IEOF)EXIT TIMES     !! IF END OF FILE ENCOUNTED THEN EXIT TIME LOOP
+
+      RECORD = RECORD + 1
+      START(3) = RECORD
+!     2.2.2 OUTPUT TIME FOUND?
+!           ------------------
+
+      IF (CDTINTT.LT.CDATEA) CYCLE TIMES
+      DO WHILE (CDTINTT.GT.CDATEA)
+         CALL NEXT_OUTPUT_TIME
+         IF (CDATEA.GT.CDATEE) EXIT FILES
+         IF (CDTINTT.LT.CDATEA) CYCLE TIMES
+      END DO
+
+!     2.2.3 DO OUTPUT OF REQUESTED FIELDS.
+!           ------------------------------
+
+      WRITE (IU06,*) ' '
+      IF (FRSTIME) THEN
+         DO I = 1,30
+           IF (.NOT.PFLAG(I) .AND. CFLAG(I)) THEN
+              WRITE(IU06,*) TITL(I), 'IS NOT STORED IN FILE'
+              PFLAG(I) = .FALSE.
+              CFLAG(I) = .FALSE.
+            END IF
+         END DO     
+         FRSTIME = .FALSE.
+         WRITE (IU06,*) ' ' 
+        ! DEFINE THE DIMENSIONS.
+        ALLOCATE (LATS(1:NY), LONS(1:NX))
+        CALL CHECK(NF90_DEF_DIM(NCID, LAT_NAME, NY, LAT_DIMID))
+        CALL CHECK(NF90_DEF_DIM(NCID, LON_NAME, NX, LON_DIMID))
+        CALL CHECK(NF90_DEF_DIM(NCID, TIME_NAME, NF90_UNLIMITED, TIME_DIMID))
+        CALL CHECK(NF90_PUT_ATT(NCID,NF90_GLOBAL, "title", "WAM - Baltic simulation"))
+        CALL CHECK(NF90_PUT_ATT(NCID,NF90_GLOBAL, "source", "source: "//TRIM(FILE_NAME)))
+        CALL CHECK(NF90_PUT_ATT(NCID,NF90_GLOBAL, "history", "Version 1.0, IOUG, Roman Janowczyk"))
+        CALL CHECK(NF90_PUT_ATT(NCID,NF90_GLOBAL, "co-author", "IOUG, Szymon Roziewski"))
+        ! DEFINE THE NETCDF VARIABLES. THE DIMIDS ARRAY IS USED TO PASS THE
+        ! DIMIDS OF THE DIMENSIONS OF THE NETCDF VARIABLES.
+        DIMIDS = (/LON_DIMID,LAT_DIMID,TIME_DIMID/)
+        COUNT = (/NX, NY, 1/)
+        START = (/ 1,  1, 1/)
+        ! DEFINE THE COORDINATE VARIABLES. THEY WILL HOLD THE COORDINATE
+        ! INFORMATION, THAT IS, THE LATITUDES AND LONGITUDES. A VARID IS
+        ! RETURNED FOR EACH.
+        CALL CHECK(NF90_DEF_VAR(NCID,LAT_NAME,NF90_REAL,(/LAT_DIMID/),LAT_VARID))
+        CALL CHECK(NF90_DEF_VAR(NCID,LON_NAME,NF90_REAL,(/LON_DIMID/),LON_VARID))
+        CALL CHECK(NF90_DEF_VAR(NCID,TIME_NAME,NF90_REAL,(/TIME_DIMID/),TIME_VARID))
+        IF (PFLAG(1) .AND. CFLAG(1)) THEN
+          CALL CHECK(NF90_DEF_VAR(NCID,U10_NAME,NF90_REAL,DIMIDS,U10_GR_VARID))
+          CALL CHECK(NF90_PUT_ATT(NCID,U10_GR_VARID, UNITS, U_UNITS))
+          CALL CHECK(NF90_PUT_ATT(NCID,U10_GR_VARID,"scale_factor", REAL(1)))
+          CALL CHECK(NF90_PUT_ATT(NCID,U10_GR_VARID,"title", 'WIND SPEED U10'))
+          CALL CHECK(NF90_PUT_ATT(NCID,U10_GR_VARID,"long_name", 'WIND SPEED U10'))
+          CALL CHECK(NF90_PUT_ATT(NCID,U10_GR_VARID,"valid_min", REAL(-300.0)))
+          CALL CHECK(NF90_PUT_ATT(NCID,U10_GR_VARID,"missing_value", -999))
+        END IF
+        IF (PFLAG(2) .AND. CFLAG(2)) THEN
+          CALL CHECK(NF90_DEF_VAR(NCID,UDIR_NAME,NF90_REAL,DIMIDS,UDIR_GR_VARID))
+          CALL CHECK(NF90_PUT_ATT(NCID,UDIR_GR_VARID,UNITS,DEG_UNITS))
+          CALL CHECK(NF90_PUT_ATT(NCID,UDIR_GR_VARID,"scale_factor", REAL(1)))
+          CALL CHECK(NF90_PUT_ATT(NCID,UDIR_GR_VARID,"title", 'WIND DIRECTION'))
+          CALL CHECK(NF90_PUT_ATT(NCID,UDIR_GR_VARID,"long_name", 'WIND DIRECTION'))
+          CALL CHECK(NF90_PUT_ATT(NCID,UDIR_GR_VARID,"valid_min", REAL(-360.0)))
+          CALL CHECK(NF90_PUT_ATT(NCID,UDIR_GR_VARID,"valid_max", REAL(360.0)))
+          CALL CHECK(NF90_PUT_ATT(NCID,UDIR_GR_VARID,"missing_value", -999))
+        END IF
+        IF (PFLAG(3) .AND. CFLAG(3)) THEN
+          CALL CHECK(NF90_DEF_VAR(NCID,US_NAME,NF90_REAL,DIMIDS,US_GR_VARID))
+          CALL CHECK(NF90_PUT_ATT(NCID,US_GR_VARID,"title", 'U*'))
+          CALL CHECK(NF90_PUT_ATT(NCID,US_GR_VARID,"long_name", 'WIND SPEED U*'))
+          CALL CHECK(NF90_PUT_ATT(NCID,US_GR_VARID,"scale_factor", REAL(1)))
+          CALL CHECK(NF90_PUT_ATT(NCID,US_GR_VARID,"valid_min", REAL(-300.0)))
+          CALL CHECK(NF90_PUT_ATT(NCID,US_GR_VARID,UNITS,U_UNITS))
+          CALL CHECK(NF90_PUT_ATT(NCID,US_GR_VARID,"missing_value", -999))
+        END IF
+        IF (PFLAG(4) .AND. CFLAG(4)) THEN
+          CALL CHECK(NF90_DEF_VAR(NCID,CD_NAME,NF90_REAL,DIMIDS,CD_GR_VARID))
+          CALL CHECK(NF90_PUT_ATT(NCID,CD_GR_VARID,"title", 'DRAG COEFFICIENT'))
+          CALL CHECK(NF90_PUT_ATT(NCID,CD_GR_VARID,"long_name", 'DRAG COEFFICIENT'))
+          CALL CHECK(NF90_PUT_ATT(NCID,CD_GR_VARID,"scale_factor", REAL(1)))
+          CALL CHECK(NF90_PUT_ATT(NCID,CD_GR_VARID,"valid_min", REAL(-100)))
+          CALL CHECK(NF90_PUT_ATT(NCID,CD_GR_VARID,"missing_value", -999))
+          CALL CHECK(NF90_PUT_ATT(NCID,CD_GR_VARID,UNITS,U_UNITS))
+        END IF
+        IF (PFLAG(7) .AND. CFLAG(7)) THEN
+          CALL CHECK(NF90_DEF_VAR(NCID,HS_NAME,NF90_REAL,DIMIDS,HS_GR_VARID))
+          CALL CHECK(NF90_PUT_ATT(NCID,HS_GR_VARID,"title", 'WAVE HEIGHTS'))
+          CALL CHECK(NF90_PUT_ATT(NCID,HS_GR_VARID,"long_name", 'WAVE HEIGHTS'))
+          CALL CHECK(NF90_PUT_ATT(NCID,HS_GR_VARID,"scale_factor", REAL(1)))
+          CALL CHECK(NF90_PUT_ATT(NCID,HS_GR_VARID,"valid_min", REAL(-100)))
+          CALL CHECK(NF90_PUT_ATT(NCID,HS_GR_VARID,"valid_max", REAL(100)))
+          CALL CHECK(NF90_PUT_ATT(NCID,HS_GR_VARID,"missing_value", -999))
+          CALL CHECK(NF90_PUT_ATT(NCID,HS_GR_VARID,UNITS,H_UNITS))
+        END IF
+        IF (PFLAG(8) .AND. CFLAG(8)) THEN
+          CALL CHECK(NF90_DEF_VAR(NCID,PPER_NAME,NF90_REAL,DIMIDS,PPER_GR_VARID))
+          CALL CHECK(NF90_PUT_ATT(NCID,PPER_GR_VARID,"title", 'WAVE PEAK PERIOD'))
+          CALL CHECK(NF90_PUT_ATT(NCID,PPER_GR_VARID,"long_name", 'WAVE PEAK PERIOD'))
+          CALL CHECK(NF90_PUT_ATT(NCID,PPER_GR_VARID,"scale_factor", REAL(1)))
+          CALL CHECK(NF90_PUT_ATT(NCID,PPER_GR_VARID,"valid_min", REAL(-600)))
+          CALL CHECK(NF90_PUT_ATT(NCID,PPER_GR_VARID,"missing_value", -999))
+          CALL CHECK(NF90_PUT_ATT(NCID,PPER_GR_VARID,UNITS,P_UNITS))
+        END IF
+        IF (PFLAG(9) .AND. CFLAG(9)) THEN
+          CALL CHECK(NF90_DEF_VAR(NCID,MPER_NAME,NF90_REAL,DIMIDS,MPER_GR_VARID))
+          CALL CHECK(NF90_PUT_ATT(NCID,MPER_GR_VARID,"title", 'WAVE MEAN PERIOD'))
+          CALL CHECK(NF90_PUT_ATT(NCID,MPER_GR_VARID,"long_name", 'WAVE MEAN PERIOD'))
+          CALL CHECK(NF90_PUT_ATT(NCID,MPER_GR_VARID,"scale_factor", REAL(1)))
+          CALL CHECK(NF90_PUT_ATT(NCID,MPER_GR_VARID,"valid_min", REAL(-100)))
+          CALL CHECK(NF90_PUT_ATT(NCID,MPER_GR_VARID,"missing_value", -999))
+          CALL CHECK(NF90_PUT_ATT(NCID,MPER_GR_VARID,UNITS,P_UNITS))
+        END IF
+        IF (PFLAG(12) .AND. CFLAG(12)) THEN
+          CALL CHECK(NF90_DEF_VAR(NCID,MDIR_NAME,NF90_REAL,DIMIDS,MDIR_GR_VARID))
+          CALL CHECK(NF90_PUT_ATT(NCID,MDIR_GR_VARID,"title", 'MEAN WAVE DIRECTION'))
+          CALL CHECK(NF90_PUT_ATT(NCID,MDIR_GR_VARID,"long_name", 'MEAN WAVE DIRECTION'))
+          CALL CHECK(NF90_PUT_ATT(NCID,MDIR_GR_VARID,"scale_factor", REAL(1)))
+          CALL CHECK(NF90_PUT_ATT(NCID,MDIR_GR_VARID,"missing_value", -999))
+          CALL CHECK(NF90_PUT_ATT(NCID,MDIR_GR_VARID,UNITS,DEG_UNITS))
+        END IF
+
+        ! ASSIGN UNITS ATTRIBUTES TO COORDINATE VAR DATA. THIS ATTACHES A
+        ! TEXT ATTRIBUTE TO EACH OF THE COORDINATE VARIABLES, CONTAINING THE
+        ! UNITS.
+        CALL CHECK(NF90_PUT_ATT(NCID, LAT_VARID, UNITS, LAT_UNITS))
+        CALL CHECK(NF90_PUT_ATT(NCID, LON_VARID, UNITS, LON_UNITS))
+        CALL CHECK(NF90_PUT_ATT(NCID, TIME_VARID, UNITS,  "hour since "//      &
+&             COUTT(1)(1:4) // "-" // COUTT(1)(5:6) // "-" // COUTT(1)(7:8) // &
+&             " " // forecast_time_in_str(1:2) //":00:00"));
+        CALL CHECK(NF90_PUT_ATT(NCID, TIME_VARID, "time_origin",               & 
+&             COUTT(1)(1:4) // "-" // COUTT(1)(5:6) // "-" // COUTT(1)(7:8) // &
+&             " "//forecast_time_in_str(1:2)//":00:00"));
+!       CALL CHECK(NF90_PUT_ATT(NCID, TIME_VARID, "modulo", REAL(1)));
+
+        ! END DEFINE MODE.
+        CALL CHECK(NF90_ENDDEF(NCID))
+
+        ! CREATE PRETEND DATA. IF THIS WASN'T AN EXAMPLE PROGRAM, WE WOULD
+        ! HAVE SOME REAL DATA TO WRITE, FOR EXAMPLE, MODEL OUTPUT.
+        DO LON = 1, NX
+           LONS(LON) = AMOWEP + (LON - 1) * XDELLO
+        END DO
+        DO LAT = 1, NY
+           LATS(LAT) = AMOSOP + (LAT - 1) * XDELLA
+        END DO
+
+        ! WRITE THE COORDINATE VARIABLE DATA. THIS WILL PUT THE LATITUDES
+        ! AND LONGITUDES OF OUR DATA GRID INTO THE NETCDF FILE.
+        CALL CHECK(NF90_PUT_VAR(NCID, TIME_VARID, T))
+        CALL CHECK(NF90_PUT_VAR(NCID, LAT_VARID, LATS))
+        CALL CHECK(NF90_PUT_VAR(NCID, LON_VARID, LONS))
+      END IF
+
+      IF (PFLAG(1) .AND. CFLAG(1)) THEN
+        CALL CHECK(NF90_PUT_VAR(NCID, U10_GR_VARID, U10_GR, START=START,COUNT=COUNT))
+      END IF
+      IF (PFLAG(2) .AND. CFLAG(2)) THEN
+        CALL CHECK(NF90_PUT_VAR(NCID, UDIR_GR_VARID, UDIR_GR, START=START,COUNT=COUNT))
+      END IF
+      IF (PFLAG(3) .AND. CFLAG(3)) THEN
+        CALL CHECK(NF90_PUT_VAR(NCID, US_GR_VARID, US_GR, START=START,COUNT=COUNT))
+      END IF
+      IF (PFLAG(4) .AND. CFLAG(4)) THEN
+        CALL CHECK(NF90_PUT_VAR(NCID, CD_GR_VARID, CD_GR, START=START,COUNT=COUNT))
+      END IF
+      IF (PFLAG(7) .AND. CFLAG(7)) THEN
+        CALL CHECK(NF90_PUT_VAR(NCID, HS_GR_VARID, HS_GR, START=START,COUNT=COUNT))
+      END IF
+      IF (PFLAG(8) .AND. CFLAG(8)) THEN
+        CALL CHECK(NF90_PUT_VAR(NCID, PPER_GR_VARID, PPER_GR, START=START,COUNT=COUNT))
+      END IF
+      IF (PFLAG(9) .AND. CFLAG(9)) THEN
+        CALL CHECK(NF90_PUT_VAR(NCID, MPER_GR_VARID, MPER_GR, START=START,COUNT=COUNT))
+      END IF
+      IF (PFLAG(12) .AND. CFLAG(12)) THEN
+        CALL CHECK(NF90_PUT_VAR(NCID, MDIR_GR_VARID, MDIR_GR, START=START,COUNT=COUNT))
+      END IF
+!     IF (PFLAG(10) .AND. CFLAG(10)) WRITE(10,*) TITL(10), TM1_GR
+!     IF (PFLAG(11) .AND. CFLAG(11)) WRITE(11,*) TITL(11), TM2_GR
+!     IF (PFLAG(13) .AND. CFLAG(13)) WRITE(13,*) TITL(13), SPRE_GR
+!     IF (PFLAG(14) .AND. CFLAG(14)) WRITE(14,*) TITL(14), TAUW_GR
+!     IF (PFLAG(15) .AND. CFLAG(15)) WRITE(15,*) TITL(15), HS_SEA_GR
+!     IF (PFLAG(16) .AND. CFLAG(16)) WRITE(16,*) TITL(16), PPER_SEA_GR
+!     IF (PFLAG(17) .AND. CFLAG(17)) WRITE(17,*) TITL(17), MPER_SEA_GR
+!     IF (PFLAG(18) .AND. CFLAG(18)) WRITE(18,*) TITL(18), TM1_SEA_GR
+!     IF (PFLAG(19) .AND. CFLAG(19)) WRITE(19,*) TITL(19), TM2_SEA_GR
+!     IF (PFLAG(20) .AND. CFLAG(20)) WRITE(20,*) TITL(20), MDIR_SEA_GR
+!     IF (PFLAG(21) .AND. CFLAG(21)) WRITE(21,*) TITL(21), SPRE_SEA_GR
+!     IF (PFLAG(23) .AND. CFLAG(23)) WRITE(23,*) TITL(23), HS_SWELL_GR
+!     IF (PFLAG(24) .AND. CFLAG(24)) WRITE(24,*) TITL(24), PPER_SWELL_GR
+!     IF (PFLAG(25) .AND. CFLAG(25)) WRITE(25,*) TITL(25), MPER_SWELL_GR
+!     IF (PFLAG(26) .AND. CFLAG(26)) WRITE(26,*) TITL(26), TM1_SWELL_GR
+!     IF (PFLAG(27) .AND. CFLAG(27)) WRITE(27,*) TITL(27), TM2_SWELL_GR
+!     IF (PFLAG(28) .AND. CFLAG(28)) WRITE(28,*) TITL(28), MDIR_SWELL_GR
+!     IF (PFLAG(29) .AND. CFLAG(29)) WRITE(29,*) TITL(29), SPRE_SWELL_GR
+!
+!*    2.2.7 NEXT OUTPUT TIME.
+!           -----------------
+
+      CALL NEXT_OUTPUT_TIME
+      IF (CDATEA.GT.CDATEE) EXIT FILES
+   END DO TIMES
+ 
+   CALL INCDATE (CDTFILE, IDFILE)       !! INCREMENT DATE FOR THE NEXT FILE.
+   CLOSE (UNIT=IU01, STATUS='KEEP')     !! CLOSE OLD FILE
+END DO FILES
+! Close the file.
+CALL CHECK(NF90_CLOSE(NCID))
+STOP
+
+! ---------------------------------------------------------------------------- !
+
+CONTAINS 
+
+SUBROUTINE NEXT_OUTPUT_TIME
+IF (NOUTT.EQ.0) THEN
+   CALL INCDATE(CDATEA,IDELDO)
+ELSE
+   IHH = '99999999999999'
+   DO I=1,NOUTT
+      IF (COUTT(I).GT.CDATEA .AND. COUTT(I).LT.IHH) IHH = COUTT(I)
+   END DO
+   CDATEA = IHH
+ENDIF
+RETURN
+END  SUBROUTINE NEXT_OUTPUT_TIME
+
+SUBROUTINE CHECK(STATUS)
+   INTEGER, INTENT ( IN) :: STATUS
+    
+   IF(STATUS /= NF90_NOERR) THEN 
+     PRINT *,'ERROR:', STATUS, ', ', TRIM(NF90_STRERROR(STATUS))
+     STOP "STOPPED"
+   END IF
+END SUBROUTINE CHECK  
+
+END PROGRAM PRINT_TIME_NETCDF
