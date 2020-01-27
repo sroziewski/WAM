@@ -3,3 +3,5 @@
 *.mod
 *.exe
 .idea/*
+bin/*
+wam.iml

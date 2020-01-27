@@ -25,7 +25,8 @@ $(preproc_objects):: %.o: %.f90
 	
 clean_preproc::
 	rm -f preproc.exe *.o *.mod
-	
+
+
 ### -------------------------------------------------------------------
 ### Chief program compilation
 ### -------------------------------------------------------------------
@@ -92,6 +93,8 @@ $(prep_data_objects):: %.o: %.f90
 
 clean_prep_data::
 	rm print_grid.exe *.o *.mod
+run::
+	cd ../bin && ./chief.exe
 
 clean::
 	rm *.o *.mod *.exe
