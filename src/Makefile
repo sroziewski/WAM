@@ -8,7 +8,7 @@ endif
 FC=gfortran
 VPATH=Module Preproc Chief Chief/User_sub Print
 
-all: preproc chief print_grid print_time_netcdf
+all: preproc chief print_grid print_time_netcdf dis
 
 ### -------------------------------------------------------------------
 ### Preproc program compilation
